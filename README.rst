@@ -4,7 +4,18 @@ tarwalker
 Summary
 -------
  
-This library provides two (2) classes for scanning files that can be provided as filenames, directory names or archive files.
+This library provides two (2) classes for scanning directories and tar
+archives to easily access matching files within them.
+
+- *TarWalker* handles walking through tar archives, including
+  optionally recursively walking through tar archives contained within
+  them.
+
+- *TarDirWalker* this expands on *TarWalker* by also scanning directory
+  paths, and handling the files and tar archives found within them.
+
+The primary difference is that *TarWalker* will throw an exception if
+given a directory.
 
 
 Installation
@@ -15,97 +26,109 @@ Install the package using **pip**, eg:
 
 Or for a specific version:
 
-     sudo python3 -m pip install pynumparser
+     sudo python3 -m pip install tarwalker
 
-*Tarwalker*
-----------------
+Examples
+--------
 
-Allowed inputs are comprised of one (1) or more subsequences separated by a comma (",").
-Subsequences can be simple numbers or number ranges with or without a *stride* value.
+The following is simple tool to look for a given string within files.
+Files can be given as arguments or within tarballs, and must end with
+either '.log' (w/an optional numeric suffix) or with '.txt':
 
-* Simple number values yield a single value.
+.. code:: python
 
-* A range is expressed as two (2) number values separated by a dash/hyphen ("-"). A range will
-  yield multiple values (usually) **including both boundary values**. Numbers in the range differ by
-  the optional *stride* value, which defaults to **1**.
+    import re
+    import sys
 
-  * The lower and upper range values are separated by a single dash/hyphen, except if the upper
-    range value is negative (eg: "-5--3").  The upper range value must be greater or equal
-    to the lower range value.
+    from tarwalker import TarWalker
 
-  * The optional *stride* value is separated from the second range value with a forward slash ("/").
-
-* By default numbers are of **int** type, but if constructed with the parameter
-  (*numtype=float*) the inputs are parsed as floating point numbers *with a* **dot** *for a
-  decimial point*, since the comma is used for subsequence separator.
-
-* If the difference between the limits is not an even mulitiple of the *stride* value, then the
-  second range will *not* be included in the result.
-
-* The parser has a *contains* method, which can be used to for a number versus a text range.
+    PATTERN = re.compile(r'.*\.(txt|log(\.\d+)?)$')
 
 
-**Exceptions**:
-^^^^^^^^^^^^^^^
-* The constructor **limits** parameter must be either *None* or a 2-tuple; the tuple values must
-  be *None* or a value of **numtype**, and:
-
-  * If neither are *None*, then the **limits[0]** value must be less than the **limits[1]** value;
-    or a ValueError is raised **by the constructor**. 
-
-  * If **limits[0]** is not *None*, then if any value is less than **limits[0]** a ValueError is
-    raised.
-
-  * If **limits[1]** is not *None*, then if any value is greater than **limits[1]** a ValueError is
-    raised.
-
-* If any input cannot be parsed as a valid number of given the **numtype** a ValueError is raised.
-
-* If the second range value is less than the first range value (eg: **"8-5"**) a ValueError is
-  raised.
-
-* If any floating point number equates to positive or negative infinity (eg: **"1e9999"**) a
-  ValueError is raised.
-
-* Negative *stride* values are not currently allowed  (but please upvote the enhancement via GitHub
-  if you need it).
-
-* If the *stride* value is zero (0) a ValueError is raised, even if the upper and lower limit values
-  are equal.
-
-* When used within **argparse.ArgumentParser** any strings that begin with a dash/hyphen values must
-  be part of the flag argument (except for simple integer values).  For example:
-
-    * This would give a parse error:  **foobar --arg -8-12 -N -5e8**
-
-    * Whereas, this could be valid:   **foobar --arg=-8-12 -N-5e8**
-
-If used within an **argparse.ArgumentParser**, the ValueError will result in a rather verbose error
-message indicating the specific problem, such as:
-
-    $ test.py --days 1000
-    usage: test.py [-h] [--age AGE] [--ints INTS] [--seconds SECONDS] [--days DAYS]
-    test.py: error: argument --days: invalid FloatSequence (from 0 to 365.25), ERROR: "UPPER too large" value: '1000'
-
-Example with *argparse.ArgumentParser*:
----------------------------------------
-
-.. code::
-
-    import argparse
-    import tarwalker
-
-    # Note:  Typical values would likely include 'help' and  'default' parameters.
-    parser = argparse.ArgumentParser(description="Number printer")
-
-    print(parser.parse_args())
-
-Examples Results:
-^^^^^^^^^^^^^^^^^
-- would be good.
+    def handler(fileobj, filename, arch, info, match):
+        try:
+            for line in fileobj:
+                if text in line:
+                    path = (arch + ':') if arch else ''
+                    print("Found in: " + path + filename)
+                    return
+        except IOError as exc:
+            pass
 
 
-Known Issues:
--------------
-1. For constructing the test data, the tests require the 'pigz' and 'bzip2' programs in the $PATH.
+    text = sys.argv[1]
+    walker = TarWalker(file_handler=handler, name_matcher=PATTERN.match, recurse=False)
 
+    for arg in sys.argv[2:]:
+        walker.handle_path(arg)
+  
+
+
+Constructors and Callbacks
+--------------------------
+
+Constructing an instance of *TarWalker* or *TarDirWalker* take the
+same parameters.  Note that at most one of *file_matcher* or
+*name_matcher* is allowed.
+
+* *file_handler* (required) a callable taking five (5) positional parameters:
+
+   * FILEOBJ - a readable *file* object for the file contents.
+   * FILEPATH - a *str* with the filename, either as one of:
+
+      * the file path given to *handle_path()*, or
+      * the path of a file found beneath a directory given to *handle_path()*.
+      * the file path of a file within an expanded tar archive.
+
+   * ARCHNAME - a *str* path of the tar archive name, when handling a
+     file found within a tar archive.  It will be a colon (':')
+     separated list if reading a recursive tar archive.
+
+   * FILEINFO - may be *None* or an object with the following
+     attributes.  See "os.stat()" for more details:
+
+      * name - the *str* name of the file,
+      * size - the size of the file in bytes,
+      * mtime - modification time, in POSIX (epoch) time,
+      * mode - the file permission bits,
+      * uid - the file owner's User ID, and
+      * gid - the file owner's Group ID
+      * match - the value returned from the *name_matcher*
+        or *file_matcher* call.
+
+   **NOTE** that compressed files with a compression suffix will have
+   the suffix removed, and the file object will return decompressed
+   contents. For example, for "foo.txt.gz" FILEPATH would be "foo.txt"
+   and FILEOBJ would be the equivalent contents of "foo.txt".
+
+* *file_matcher* (optional) a callable that takes two (2) positional
+  parameters and returns true if the file should be opened and
+  passed to the *file_handler* callback:
+
+   * FILEPATH - See *FILEPATH* above.
+   * FILEINFO - See *FILEINFO* above.
+
+* *name_matcher (optional) a callable that takes one (1) positional
+  parameter  and returns true if the file be opened and passed to
+  *file_handler*:
+
+   * FILEPATH - See *file_handler*, above.
+
+* *recurse* (optional) If true, the algorithm will recurse into
+  tarballs found within other tarballs. If *recurse* is a callable, it
+  will be called before and after opening an interior tarball, with
+  four (4) positional parameters:
+
+    * START - a bool that indicates recursion into the given tarball
+      is starting; it is False on the second call.
+    * TARNAME - name of the contained (interior) tarball, see *FILEPATH* above.
+    * ARCHIVE - the name of the containing (exterior) tarball, see *ARCHNAME* above.
+    * FILEINFO - See *FILEINFO* above.
+
+
+Known Issues
+------------
+
+- The ARCHNAME passed to the *file_handler* callback uses ':' as a
+  separator, which is a legal filename component, so does not
+  necessarily indicate a nested archive.

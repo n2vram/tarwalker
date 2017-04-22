@@ -9,8 +9,8 @@ url = 'https://github.com/n2vram/' + name
 
 setup(
     name=name,
-    version=tarwalker.version,
-    description=tarwalker.description,
+    version=tarwalker.__version__,
+    description=tarwalker.__descr__,
     long_description=open('README.rst').read(),
     license='MIT',
     author='NVRAM',
@@ -24,14 +24,14 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: System :: Archiving :: Packaging',
         'Topic :: Text Processing :: Filters',
         'Topic :: Utilities',
-        'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    keywords=['argparse', 'numparser', 'parser', 'numbers', 'parsing',
-              'ArgumentParser', 'command-line', 'sequences'],
+    keywords=['archives', 'tar', 'tarball', 'scanner'],
 
     py_modules=[name],
-    download_url=(url + '/archive/' + tarwalker.version),
+    download_url=(url + '/archive/' + tarwalker.__version__),
     platforms=['any'],
 )

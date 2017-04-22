@@ -15,7 +15,7 @@
 # For example, to handle all "foobar.log" files, including ones with
 # suffixes from rename and compression by logrotate:
 #
-#   def file_handler(fileobj, filename, archivename=None, info=None):
+#   def file_handler(fileobj, filename, archivename, info, match):
 #      print("File: \"{}\"{}".format(filename,
 #            (" from: " + archivename) if archivename is not None else ""))
 #
