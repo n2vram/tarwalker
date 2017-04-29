@@ -43,10 +43,10 @@ from bz2 import BZ2File, decompress as bz2decompress
 from collections import namedtuple
 
 
-__version__ = "1.0"
+__version__ = "0.1"
 __credits__ = "NVRAM"
 __author__ = "NVRAM (nvram@users.sourceforge.net)"
-__date__ = "Sat Apr 22 15:59:29 UTC 2017"
+__date__ = "Sat Apr 29 19:42:07 UTC 2017"
 __descr__ = ('A library to walk through tar archives, simplifying use by ' +
              'handling listing and decompression.')
 
@@ -95,7 +95,7 @@ class TarWalker(object):
     """
     def __init__(self, file_handler, file_matcher=None, name_matcher=None, recurse=False):
         # TODO: allow control in following of links.
-        logging.info("file_handler=%s, file_matcher=%s, name_matcher=%s, recurse=%s",
+        logging.debug("file_handler=%s, file_matcher=%s, name_matcher=%s, recurse=%s",
                      file_handler, file_matcher, name_matcher, recurse)
         if file_matcher and name_matcher:
             raise RuntimeError("Do not provide both a 'file_matcher' and a 'name_matcher'.")
@@ -259,23 +259,23 @@ class TarDirWalker(TarWalker):
     def handle_path(self, param):
         # Handle directories here.
         if isinstance(param, str) and os.path.isdir(param):
-            logging.info("Scanning Directory: %s", param)
+            logging.debug("Scanning Directory: %s", param)
             for dname, _subdirs, files in os.walk(param):
                 for fname in files:
                     fname = os.path.join(dname, fname)
                     logging.debug('TarDirWalker.handle_path("%s")', fname)
                     ftype = self._file_type(fname)
                     if ftype[1] != self.Types.NONE:
-                        logging.debug('TarWalker.handle_path("%s")-1', fname)
+                        logging.debug('TarWalker.handle_path("%s")', fname)
                         super(TarDirWalker, self).handle_path(fname)
                     elif (self.matcher and
                           self.matcher(fname, get_file_info(fname))):
-                        logging.debug('TarWalker.handle_path("%s")-2', fname)
+                        logging.debug('TarWalker.handle_path("%s")', fname)
                         super(TarDirWalker, self).handle_path(fname)
                     elif ftype[2] == self.Types.TARBALL and self.recurse:
-                        logging.info('Scanning TARBALL: %s', fname)
+                        logging.debug('Scanning TARBALL: %s', fname)
                         super(TarDirWalker, self).handle_path(fname)
                     else:
-                        logging.debug('TarWalker.ignored_path("%s")-4', fname)
+                        logging.debug('TarWalker.ignored_path("%s")', fname)
         else:
             super(TarDirWalker, self).handle_path(param)

@@ -93,13 +93,13 @@ same parameters.  Note that at most one of *file_matcher* or
       * mode - the file permission bits,
       * uid - the file owner's User ID, and
       * gid - the file owner's Group ID
-      * match - the value returned from the *name_matcher*
-        or *file_matcher* call.
 
-   **NOTE** that compressed files with a compression suffix will have
-   the suffix removed, and the file object will return decompressed
-   contents. For example, for "foo.txt.gz" FILEPATH would be "foo.txt"
-   and FILEOBJ would be the equivalent contents of "foo.txt".
+   * MATCH - the value returned from the *name_matcher* or *file_matcher* call.
+
+   **NOTE:** files with a compression suffix will have the suffix
+   removed, and the file object will return decompressed contents.
+   *For example*, for "foo.txt.gz" FILEPATH would be "foo.txt" and FILEOBJ
+   would be the equivalent contents of "foo.txt".
 
 * *file_matcher* (optional) a callable that takes two (2) positional
   parameters and returns true if the file should be opened and
@@ -115,9 +115,9 @@ same parameters.  Note that at most one of *file_matcher* or
    * FILEPATH - See *file_handler*, above.
 
 * *recurse* (optional) If true, the algorithm will recurse into
-  tarballs found within other tarballs. If *recurse* is a callable, it
-  will be called before and after opening an interior tarball, with
-  four (4) positional parameters:
+  tarballs found within other tarballs. Furthermore, if *recurse* is a
+  callable it will be called before and after opening an interior
+  tarball, with four (4) positional parameters:
 
     * START - a bool that indicates recursion into the given tarball
       is starting; it is False on the second call.
