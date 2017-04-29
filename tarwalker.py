@@ -43,10 +43,10 @@ from bz2 import BZ2File, decompress as bz2decompress
 from collections import namedtuple
 
 
-__version__ = "0.1"
+__version__ = "1.0"
 __credits__ = "NVRAM"
 __author__ = "NVRAM (nvram@users.sourceforge.net)"
-__date__ = "Sat Apr 29 19:42:07 UTC 2017"
+__date__ = "Sat Apr 29 22:19:38 UTC 2017"
 __descr__ = ('A library to walk through tar archives, simplifying use by ' +
              'handling listing and decompression.')
 
