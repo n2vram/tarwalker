@@ -17,6 +17,11 @@ archives to easily access matching files within them.
 The primary difference is that *TarWalker* will throw an exception if
 given a directory.
 
+----------
+
+.. contents:: **Index**
+   :depth: 2
+   :local:
 
 Installation
 ------------
@@ -52,7 +57,7 @@ either '.log' (w/an optional numeric suffix) or with '.txt':
                     path = (arch + ':') if arch else ''
                     print("Found in: " + path + filename)
                     return
-        except IOError as exc:
+        except IOError:
             pass
 
 
@@ -125,6 +130,13 @@ same parameters.  Note that at most one of *file_matcher* or
     * ARCHIVE - the name of the containing (exterior) tarball, see *ARCHNAME* above.
     * FILEINFO - See *FILEINFO* above.
 
+
+Build Status
+------------
+
+.. image:: https://travis-ci.org/n2vram/tarwalker.svg?master
+    :alt: Build Status
+    :target: https://travis-ci.org/n2vram/tarwalker
 
 Known Issues
 ------------

@@ -1,0 +1,27 @@
+# Backups
+*~
+*.rej
+*.orig
+*.save
+*.swp
+*.bak
+*.backup
+*.back
+
+# Compiled objects, IDE junk:
+.idea
+__pycache__
+*.pyc
+*.pyo
+.cache/
+.coverage
+
+# Typical junk & Log files, etc.
+*.log
+junk/
+
+# sMack & Winblows crap.
+.DS_Store*
+.Trash*
+*.db
+

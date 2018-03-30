@@ -2,12 +2,14 @@
 #
 # Tests for the module: common.mathstuff
 #
+from bz2 import BZ2File
+from gzip import GzipFile
 import hashlib
 import logging
 import os
 import py
-import subprocess
 import tempfile
+import tarfile
 from random import randint
 from unittest import TestCase
 
@@ -47,69 +49,80 @@ class ArchiveRepo(object):
         return self
 
     def build_data(self, filename):
-        # Doing this without actually arching files from disk is hard, let's go shopping!
-        self.sums = {}
-        self.build_subdir(filename, self.basedir.mkdir("norm"), "tar-norm.tar", "")
-        self.build_subdir(filename, self.basedir.mkdir("gzip"), "tar-gzip.tgz", "-z")
-        self.build_subdir(filename, self.basedir.mkdir("bzip"), "tar-bzip.tbz", "-j")
 
-        # Create tarballs, too.
+        # Doing this without actually arching files from disk is hard, but we do this for the dirscanner
+        self.sums = {}
+        self.build_subdir(filename, self.basedir.mkdir("norm"), "tar-norm.tar", '')
+        self.build_subdir(filename, self.basedir.mkdir("gzip"), "tar-gzip.tgz", 'gz')
+        self.build_subdir(filename, self.basedir.mkdir("bzip"), "tar-bzip.tbz", 'bz2')
+
+        # Create 3 tarballs of tarballs.
         sums = dict(self.sums)
-        for compr, suff in ('-z', '.gz'), ('-j', '.bz'), ('-v', ''):
-            tarball = 'tar-redux.tar' + suff
-            inner = ['tar-norm.tar', 'tar-gzip.tgz', 'tar-bzip.tbz']
-            self.call_proc(['tar', compr, '-cf', tarball] + inner)
-            self.tarballs.append(tarball)
-            for path, result in sums.items():
+        inner = ('tar-norm.tar', 'tar-gzip.tgz', 'tar-bzip.tbz')
+        for compr, suff in ('gz', '.gz'), ('bz2', '.bz'), ('', ''):
+            tarname = 'tar-redux.tar' + suff
+            with tarfile.open(name=self.basedir.join(tarname).strpath,
+                              mode='w:' + compr) as tarball:
+                for fname in inner:
+                    tarball.add(name=self.basedir.join(fname).strpath, arcname=fname)
+                self.tarballs.append(tarname)
+
+            for path, result in sorted(sums.items()):
                 root = path.split(':')[0]
                 if root in inner:
-                    self.sums[tarball + ":" + path] = result
-                    logging.info("Inner: " + tarball + ":" + path)
+                    self.sums[tarname + ":" + path] = result
+                    logging.info("Inner: " + tarname + ":" + path)
 
-    def build_subdir(self, filename, subdir, tarball, compress):
-        gzips = ["gzip", "-9"]
-        bzips = ["bzip2", "-9"]
+    def open_file(self, compr, path, mode):
+        if compr == T.GZip:
+            suff, func = '.gz', GzipFile
+        elif compr == T.BZip:
+            suff, func = '.bz2', BZ2File
+        else:
+            suff, func = '', open
+        path += suff
+        logging.info("OpenFile(%s, '%s', '%s')...", compr, path, mode)
+        return suff, func(path, mode)
+
+    def build_subdir(self, filename, subdir, tarname, tcompr):
         sums = {}
-        for dname in 'one', 'two', 'three':
-            dpath = subdir.mkdir(dname)
-            for suff, comp in ('', T.Normal), ('-1', T.Normal), ('-2', T.GZip), ('-3', T.BZip), ('-0', None):
-                basename = filename.format(suff)
-                filepath = dpath.join(basename)
-                relpath = filepath.relto(self.basedir.strpath)
+        tarpath = self.basedir.join(tarname).strpath
+        with tarfile.open(name=tarpath, mode='w:' + tcompr) as tarball:
 
-                if comp is None:
-                    numlines = 0
-                else:
-                    numlines = randint(2, 7)
-                data = "".join(["{}:{}: Just some text.\n".format(relpath, lnum) for lnum in range(numlines)])
-                filepath.write(data)
+            # Three parallel directories...
+            for dname in 'aaa', 'bbb', 'ccc':
+                dpath = subdir.mkdir(dname)
+                # ..with 5 files each...
+                for suff, compr in ('', T.Normal), ('-1', T.Normal), ('-2', T.GZip), ('-3', T.BZip), ('-0', None):
+                    basename = filename.format(suff)
+                    filepath = dpath.join(basename)
+                    relpath = filepath.relto(self.basedir.strpath)
+                    numlines = randint(2, 7) if compr else 0
+                    data = "".join(["{}:{}: Just some text.\n".format(relpath, lnum) for lnum in range(numlines)])
+                    data = data.encode('utf-8')
 
-                # The tarball gets the filename without a suffix.
-                result = (_md5(data), numlines)
-                if numlines:
-                    self.sums[tarball + ":" + relpath] = result
-                if comp == T.GZip:
-                    gzips.append(relpath)
-                    relpath += '.gz'
-                elif comp == T.BZip:
-                    bzips.append(relpath)
-                    relpath += '.bz2'
-                sums[relpath] = result
+                    # The tarball gets the filename without a suffix.
+                    result = (_md5(data), numlines)
+                    if numlines:
+                        self.sums[tarname + ":" + relpath] = result
+                    suff, fdes = self.open_file(compr, str(filepath), 'wb')
+                    fdes.write(data)
+                    fdes.close()
+                    relpath += suff
+                    filepath += suff
+                    sums[relpath] = result
+                    tarball.add(name=str(filepath), arcname=str(relpath))
 
-            for other in range(3):
-                other = dpath.join("IgnoreMe-%d.txt" % other)
-                other.write(other.relto(self.basedir))
+                for other in range(3):
+                    filepath = dpath.join("IgnoreMe-%d.txt" % other)
+                    relpath = filepath.relto(self.basedir)
+                    filepath.write(relpath)
+                    tarball.add(name=str(filepath), arcname=relpath)
 
         # Add sums for the actual files.
         self.sums.update(sums)
+        self.tarballs.append(tarname)
 
-        # Compress the intended files (replacing them on disk).
-        self.call_proc(gzips)
-        self.call_proc(bzips)
-
-        # Create a tarball with the desired files.
-        self.call_proc(['tar', compress, '-cf', tarball, subdir.relto(self.basedir)])
-        self.tarballs.append(tarball)
         return sums
 
     EXPECT_RECURSED = ((True, 'tar-redux.tar', 'tar-norm.tar'),
@@ -130,15 +143,6 @@ class ArchiveRepo(object):
                        (False, 'tar-redux.tar.gz', 'tar-gzip.tgz'),
                        (True, 'tar-redux.tar.gz', 'tar-bzip.tbz'),
                        (False, 'tar-redux.tar.gz', 'tar-bzip.tbz'))
-
-    EXPECT_ABORTED = (('tar-redux.tar:tar-norm.tar', 'norm/three/file-3.info'),
-                      ('tar-redux.tar:tar-gzip.tgz', 'gzip/three/file-3.info'),
-                      ('tar-redux.tar:tar-bzip.tbz', 'bzip/three/file-3.info'))
-
-    def call_proc(self, command, **kwds):
-        # Wait for the subprocess to finish, otherwise we might get bad data in the tarballs.
-        logging.info("UNDER \"{}\" CALLING: {}".format(self.basedir.strpath, command))
-        subprocess.Popen(command, cwd=self.basedir.strpath, **kwds).wait()
 
 
 class Handler(object):
@@ -179,10 +183,15 @@ class Handler(object):
 
         base_arch = archive and os.path.basename(archive)
         if self.abort:
-            logging.warning("Aborting on file.: \"%s\":\"%s\"", archive, filepath)
-            self.aborted.append((base_arch, filepath))
-            raise self.abort("Giving up on %s:%s" % (base_arch, filepath))
-        assert not self.aborted
+            name, eclass = self.abort
+            if name in filepath:
+                logging.info("Using aborted handler %s", self)
+                logging.warning("Aborting on file: \"%s\" :: \"%s\"", archive, filepath)
+                self.aborted.append((base_arch, filepath))
+                raise eclass("Giving up on %s:%s" % (base_arch, filepath))
+        if self.aborted:
+            logging.info("Using aborted handler %s", self)
+        assert base_arch not in [arch for arch, fname in self.aborted]
 
         filepath = self.trim(filepath)
         archive = self.trim(archive)
@@ -203,7 +212,7 @@ class Handler(object):
 class TestTarWalker(TestCase):
 
     def setUp(self):
-        tmpdir = tempfile.mkdtemp(prefix='pytest-archscan.')
+        tmpdir = tempfile.mkdtemp(prefix='pytest-tarwalk.')
         self.basedir = py.path.local(tmpdir)
         self.archive_repo = ArchiveRepo(self.basedir)
         self.hook = Handler(self.basedir)
@@ -245,7 +254,8 @@ class TestTarWalker(TestCase):
         self.scanner = TarWalker(self.hook.handler, name_matcher=self.hook.matcher, recurse=self.hook.recurse)
 
         # Test the StopIteration feature, stopping after recursions:
-        self.hook.abort = StopIteration
+        name = 'bbb/file-2.info'
+        self.hook.abort = (name, StopIteration)
 
         files = sorted(map(str, self.basedir.visit(fil=lambda p: os.path.isfile(p.strpath))))
         logging.info("test_archive_files: Files: {}".format(files))
@@ -254,22 +264,27 @@ class TestTarWalker(TestCase):
             self.scanner.handle_path(fobj)
         logging.info("RECURSED: " + str(self.hook.recursed))
         logging.info("ABORTED: " + str(self.hook.aborted))
-        assert ArchiveRepo.EXPECT_ABORTED == tuple(self.hook.aborted)
+        expect_aborted = (('tar-redux.tar:tar-norm.tar', 'norm/' + name),
+                          ('tar-redux.tar:tar-gzip.tgz', 'gzip/' + name),
+                          ('tar-redux.tar:tar-bzip.tbz', 'bzip/' + name))
+        assert expect_aborted == tuple(self.hook.aborted)
 
     def test_archive_except(self):
         self.scanner = TarDirWalker(self.hook.handler, name_matcher=self.hook.matcher, recurse=self.hook.recurse)
 
         # Test the StopIteration feature, stopping after recursions:
-        self.hook.abort = IOError
+        name = 'aaa/file-3.info'
+        self.hook.abort = (name, IOError)
 
         files = sorted(map(str, self.basedir.visit(fil=lambda p: os.path.isfile(p.strpath))))
         logging.info("test_archive_files: Files: {}".format(files))
         fpath = os.path.join(self.basedir.strpath, 'tar-redux.tar')
-        with self.assertRaises(self.hook.abort) as raised:
+        with self.assertRaises(IOError) as raised:
             self.scanner.handle_path(fpath)
-        assert str(raised.exception) == 'Giving up on tar-redux.tar:tar-norm.tar:norm/three/file-3.info'
-        assert ArchiveRepo.EXPECT_ABORTED[:1] == tuple(self.hook.aborted)
+
+        assert str(raised.exception) == 'Giving up on tar-redux.tar:tar-norm.tar:norm/' + name
         assert ArchiveRepo.EXPECT_RECURSED[:1] == tuple(self.hook.recursed)
+        assert [('tar-redux.tar:tar-norm.tar', 'norm/' + name)] == self.hook.aborted
 
     def callback(self, *params):
         self.callback_args = params

@@ -13,7 +13,7 @@ def handler(fileobj, filename, arch, info, match):
                 path = (arch + ':') if arch else ''
                 print("Found in: " + path + filename)
                 return
-    except IOError as exc:
+    except IOError:
         pass
 
 

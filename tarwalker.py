@@ -96,7 +96,7 @@ class TarWalker(object):
     def __init__(self, file_handler, file_matcher=None, name_matcher=None, recurse=False):
         # TODO: allow control in following of links.
         logging.debug("file_handler=%s, file_matcher=%s, name_matcher=%s, recurse=%s",
-                     file_handler, file_matcher, name_matcher, recurse)
+                      file_handler, file_matcher, name_matcher, recurse)
         if file_matcher and name_matcher:
             raise RuntimeError("Do not provide both a 'file_matcher' and a 'name_matcher'.")
         self.handler = file_handler
